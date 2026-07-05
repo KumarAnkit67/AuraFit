@@ -1,0 +1,6 @@
+{
+  "name": "AuraFit",
+  "description": "Modern workout tracker with a sleek, neon-blue aesthetic and smart performance logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
