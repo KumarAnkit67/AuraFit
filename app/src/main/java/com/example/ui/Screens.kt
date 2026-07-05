@@ -973,6 +973,14 @@ fun SplitsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newSplitName by remember { mutableStateOf("") }
 
+    var showDeleteSplitConfirm by remember { mutableStateOf(false) }
+    var splitToDelete by remember { mutableStateOf<WorkoutSplit?>(null) }
+
+    var showAddDayDialog by remember { mutableStateOf(false) }
+    var selectedSplitForNewDay by remember { mutableStateOf<WorkoutSplit?>(null) }
+    var newDayName by remember { mutableStateOf("") }
+    var newDayOfWeek by remember { mutableStateOf("Monday") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1005,7 +1013,7 @@ fun SplitsScreen(
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Select an existing training strategy or define your own tailored routine split.",
+            text = "Select an existing training strategy or define your own tailored routine split. Manage splits, delete custom strategies, or add custom workout days below.",
             color = TextGray,
             fontSize = 13.sp
         )
@@ -1034,7 +1042,7 @@ fun SplitsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = split.name,
                                     color = TextWhite,
@@ -1049,22 +1057,46 @@ fun SplitsScreen(
                                 )
                             }
 
-                            if (!split.isActive) {
-                                NeonButton(
-                                    text = "ACTIVATE",
-                                    onClick = { viewModel.activateSplit(split) },
-                                    modifier = Modifier.height(36.dp)
-                                )
-                            } else {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Active",
-                                        tint = ActiveGreen,
-                                        modifier = Modifier.size(18.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (split.isCustom) {
+                                    IconButton(
+                                        onClick = {
+                                            splitToDelete = split
+                                            showDeleteSplitConfirm = true
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Split",
+                                            tint = FailureMagenta
+                                        )
+                                    }
+                                }
+
+                                if (!split.isActive) {
+                                    NeonButton(
+                                        text = "ACTIVATE",
+                                        onClick = { viewModel.activateSplit(split) },
+                                        modifier = Modifier.height(36.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "ACTIVE", color = ActiveGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Active",
+                                            tint = ActiveGreen,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(text = "ACTIVE", color = ActiveGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
@@ -1075,7 +1107,8 @@ fun SplitsScreen(
                         val daysState = viewModel.getDaysForSplit(split.id).collectAsState(initial = emptyList())
                         Row(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             for (day in daysState.value) {
                                 Box(
@@ -1093,6 +1126,29 @@ fun SplitsScreen(
                                         Text(text = day.name, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         Text(text = day.dayOfWeek.take(3), color = TextGray, fontSize = 10.sp)
                                     }
+                                }
+                            }
+
+                            // Add Workout Day item inside split card
+                            Box(
+                                modifier = Modifier
+                                    .background(SurfaceCardBorder, RoundedCornerShape(10.dp))
+                                    .border(1.dp, NeonBlueDim, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        selectedSplitForNewDay = split
+                                        showAddDayDialog = true
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Day",
+                                        tint = NeonBlue,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "ADD DAY", color = NeonBlue, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                 }
                             }
                         }
@@ -1151,6 +1207,105 @@ fun SplitsScreen(
                 containerColor = SurfaceCard
             )
         }
+
+        if (showDeleteSplitConfirm && splitToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { showDeleteSplitConfirm = false },
+                title = { Text("Delete Custom Split?", color = TextWhite, fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete the split \"${splitToDelete?.name}\"? This will also delete all its scheduled days.", color = TextGray) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            splitToDelete?.let { viewModel.deleteSplit(it) }
+                            showDeleteSplitConfirm = false
+                            splitToDelete = null
+                        }
+                    ) {
+                        Text("Delete", color = FailureMagenta, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteSplitConfirm = false }) {
+                        Text("Cancel", color = TextGray)
+                    }
+                },
+                containerColor = SurfaceCard
+            )
+        }
+
+        if (showAddDayDialog && selectedSplitForNewDay != null) {
+            val daysOfWeekList = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+            AlertDialog(
+                onDismissRequest = { showAddDayDialog = false },
+                title = { Text("Add Day to ${selectedSplitForNewDay?.name}", color = TextWhite, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = newDayName,
+                            onValueChange = { newDayName = it },
+                            label = { Text("Day Name (e.g. Pull Day)") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = NeonBlue,
+                                unfocusedBorderColor = TextGray
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Scheduled Day of Week:", color = TextGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            daysOfWeekList.forEach { dOfWeek ->
+                                val isSelected = newDayOfWeek == dOfWeek
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) NeonBlue else SurfaceCardBorder,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { newDayOfWeek = dOfWeek }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = dOfWeek,
+                                        color = if (isSelected) Color.Black else TextWhite,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (newDayName.isNotEmpty()) {
+                                selectedSplitForNewDay?.let {
+                                    viewModel.addDayToSplit(it.id, newDayName, newDayOfWeek)
+                                }
+                                showAddDayDialog = false
+                                newDayName = ""
+                            }
+                        }
+                    ) {
+                        Text("Add", color = NeonBlue, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDayDialog = false }) {
+                        Text("Cancel", color = TextGray)
+                    }
+                },
+                containerColor = SurfaceCard
+            )
+        }
+
         Spacer(modifier = Modifier.height(80.dp))
     }
 }
@@ -1174,15 +1329,126 @@ fun SplitDayDetailsScreen(
     ) {
         Spacer(modifier = Modifier.height(36.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { viewModel.currentScreen = "splits" }) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = NeonBlue)
+        var showEditDayDialog by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                IconButton(onClick = { viewModel.currentScreen = "splits" }) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = NeonBlue)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(text = split.name.uppercase(), color = NeonBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "${day.name} (${day.dayOfWeek})", color = TextWhite, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(text = split.name.uppercase(), color = NeonBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(text = "${day.name} (${day.dayOfWeek})", color = TextWhite, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(
+                    onClick = { showEditDayDialog = true },
+                    modifier = Modifier
+                        .background(SurfaceCardBorder, CircleShape)
+                        .size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Day Details",
+                        tint = NeonBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { viewModel.deleteDay(day) },
+                    modifier = Modifier
+                        .background(SurfaceCardBorder, CircleShape)
+                        .size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Day",
+                        tint = FailureMagenta,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
+        }
+
+        if (showEditDayDialog) {
+            var editedName by remember { mutableStateOf(day.name) }
+            var editedDayOfWeek by remember { mutableStateOf(day.dayOfWeek) }
+            val daysOfWeekList = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+            AlertDialog(
+                onDismissRequest = { showEditDayDialog = false },
+                title = { Text("Edit Day Settings", color = TextWhite, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = editedName,
+                            onValueChange = { editedName = it },
+                            label = { Text("Day Name (e.g. Pull Day)") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = NeonBlue,
+                                unfocusedBorderColor = TextGray
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Scheduled Day of Week:", color = TextGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            daysOfWeekList.forEach { dOfWeek ->
+                                val isSelected = editedDayOfWeek.equals(dOfWeek, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) NeonBlue else SurfaceCardBorder,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { editedDayOfWeek = dOfWeek }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = dOfWeek,
+                                        color = if (isSelected) Color.Black else TextWhite,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (editedName.isNotEmpty()) {
+                                viewModel.updateDay(day.copy(name = editedName, dayOfWeek = editedDayOfWeek))
+                                showEditDayDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Save", color = NeonBlue, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditDayDialog = false }) {
+                        Text("Cancel", color = TextGray)
+                    }
+                },
+                containerColor = SurfaceCard
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))

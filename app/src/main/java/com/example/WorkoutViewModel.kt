@@ -388,6 +388,41 @@ class WorkoutViewModel(
         }
     }
 
+    fun deleteSplit(split: WorkoutSplit) {
+        viewModelScope.launch {
+            repository.deleteSplit(split)
+        }
+    }
+
+    fun updateDay(day: WorkoutDay) {
+        viewModelScope.launch {
+            repository.updateDay(day)
+            if (selectedDay?.id == day.id) {
+                selectedDay = day
+            }
+        }
+    }
+
+    fun deleteDay(day: WorkoutDay) {
+        viewModelScope.launch {
+            repository.deleteDay(day)
+            currentScreen = "splits"
+        }
+    }
+
+    fun addDayToSplit(splitId: Int, name: String, dayOfWeek: String) {
+        viewModelScope.launch {
+            repository.insertDay(
+                WorkoutDay(
+                    splitId = splitId,
+                    name = name,
+                    dayOfWeek = dayOfWeek,
+                    orderIndex = 99
+                )
+            )
+        }
+    }
+
     fun addExerciseToDay(dayId: Int, exercise: Exercise) {
         viewModelScope.launch {
             repository.addExerciseToDay(dayId, exercise.id, 99)
