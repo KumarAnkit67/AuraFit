@@ -91,12 +91,13 @@ fun NeonButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    isSecondary: Boolean = false
+    isSecondary: Boolean = false,
+    height: androidx.compose.ui.unit.Dp = 50.dp
 ) {
     Button(
         onClick = onClick,
         modifier = modifier
-            .height(50.dp)
+            .height(height)
             .testTag("neon_btn_$text"),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent
@@ -148,232 +149,832 @@ fun MainLayout(
     content: @Composable (PaddingValues) -> Unit
 ) {
     val context = LocalContext.current
-    Scaffold(
-        bottomBar = {
-            if (viewModel.currentScreen != "active_workout") {
-                Column {
-                    // Floating active workout banner if minimized (Strong/Hevy Style!)
-                    viewModel.activeSession?.let { session ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(NeonBlueDim)
-                                .clickable { viewModel.currentScreen = "active_workout" }
-                                .padding(vertical = 12.dp, horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.FitnessCenter,
-                                    contentDescription = "Active Workout",
-                                    tint = NeonBlue,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Active Session: ${session.dayName}",
-                                        color = TextWhite,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+    var showGyaniChat by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            bottomBar = {
+                if (viewModel.currentScreen != "active_workout") {
+                    Column {
+                        // Floating active workout banner if minimized (Strong/Hevy Style!)
+                        viewModel.activeSession?.let { session ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(NeonBlueDim)
+                                    .clickable { viewModel.currentScreen = "active_workout" }
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.FitnessCenter,
+                                        contentDescription = "Active Workout",
+                                        tint = NeonBlue,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "Active Session: ${session.dayName}",
+                                            color = TextWhite,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                            )
+                                        Text(
+                                            text = "Duration: ${formatDuration(viewModel.workoutDurationSeconds)}",
+                                            color = NeonBlue,
+                                            fontSize = 12.sp
                                         )
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = "Expand",
+                                    tint = NeonBlue
+                                )
+                            }
+                        }
+
+                        // Floating Rest Timer Alert
+                        if (viewModel.isRestTimerActive) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF1E293B))
+                                    .padding(vertical = 10.dp, horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Timer,
+                                        contentDescription = "Rest Timer",
+                                        tint = ActiveGreen,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Duration: ${formatDuration(viewModel.workoutDurationSeconds)}",
-                                        color = NeonBlue,
-                                        fontSize = 12.sp
+                                        text = "Rest Timer: ${viewModel.restTimerRemainingSeconds}s remaining",
+                                        color = TextWhite,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { viewModel.stopRestTimer() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Cancel,
+                                        contentDescription = "Stop Timer",
+                                        tint = FailureMagenta,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = "Expand",
-                                tint = NeonBlue
-                            )
                         }
-                    }
 
-                    // Floating Rest Timer Alert
-                    if (viewModel.isRestTimerActive) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF1E293B))
-                                .padding(vertical = 10.dp, horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        // Standard Navigation Bar
+                        NavigationBar(
+                            containerColor = SurfaceCard,
+                            tonalElevation = 8.dp
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Timer,
-                                    contentDescription = "Rest Timer",
-                                    tint = ActiveGreen,
-                                    modifier = Modifier.size(18.dp)
+                            NavigationBarItem(
+                                selected = viewModel.currentScreen == "dashboard" || viewModel.currentScreen == "ai_coach",
+                                onClick = { viewModel.currentScreen = "dashboard" },
+                                icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
+                                label = { Text("Home") },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = NeonBlue,
+                                    indicatorColor = NeonBlue,
+                                    unselectedIconColor = TextGray,
+                                    unselectedTextColor = TextGray
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Rest Timer: ${viewModel.restTimerRemainingSeconds}s remaining",
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 13.sp
+                            )
+                            NavigationBarItem(
+                                selected = viewModel.currentScreen == "splits",
+                                onClick = { viewModel.currentScreen = "splits" },
+                                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Splits") },
+                                label = { Text("Splits") },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = NeonBlue,
+                                    indicatorColor = NeonBlue,
+                                    unselectedIconColor = TextGray,
+                                    unselectedTextColor = TextGray
                                 )
-                            }
-                            IconButton(
-                                onClick = { viewModel.stopRestTimer() },
-                                modifier = Modifier.size(24.dp)
+                            )
+                            NavigationBarItem(
+                                selected = viewModel.currentScreen == "exercise_library",
+                                onClick = { viewModel.currentScreen = "exercise_library" },
+                                icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "Library") },
+                                label = { Text("Exercises") },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = NeonBlue,
+                                    indicatorColor = NeonBlue,
+                                    unselectedIconColor = TextGray,
+                                    unselectedTextColor = TextGray
+                                )
+                            )
+                            NavigationBarItem(
+                                selected = viewModel.currentScreen == "progress",
+                                onClick = { viewModel.currentScreen = "progress" },
+                                icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Analytics") },
+                                label = { Text("Progress") },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = NeonBlue,
+                                    indicatorColor = NeonBlue,
+                                    unselectedIconColor = TextGray,
+                                    unselectedTextColor = TextGray
+                                )
+                            )
+                            NavigationBarItem(
+                                selected = viewModel.currentScreen == "nutrition",
+                                onClick = { viewModel.currentScreen = "nutrition" },
+                                icon = { Icon(Icons.Default.Restaurant, contentDescription = "Nutrition") },
+                                label = { Text("Nutrition") },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = NeonBlue,
+                                    indicatorColor = NeonBlue,
+                                    unselectedIconColor = TextGray,
+                                    unselectedTextColor = TextGray
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            containerColor = DarkBackground,
+            content = content
+        )
+
+        // Floating Gyani Button overlay (glowing aura-ai design)
+        if (viewModel.currentScreen != "onboarding") {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = if (viewModel.currentScreen == "active_workout") 16.dp else 90.dp)
+                    .size(64.dp)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(NeonBlue, BlueGradientEnd)
+                        ),
+                        shape = CircleShape
+                    )
+                    .border(2.dp, TextWhite, CircleShape)
+                    .clickable { showGyaniChat = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Gyani Chat",
+                        tint = Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "GYANI",
+                        color = Color.Black,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+        }
+
+        if (showGyaniChat) {
+            GyaniChatDialog(
+                viewModel = viewModel,
+                onDismiss = { showGyaniChat = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun GyaniChatDialog(
+    viewModel: WorkoutViewModel,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            color = DarkBackground,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 28.dp), // Safe area for full screen
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextWhite
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(NeonBlueDim, CircleShape)
+                                .border(1.dp, NeonBlue, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("GY", color = NeonBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "GYANI AI ASSISTANT",
+                                color = TextWhite,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "Your AI Workout & Nutrition Coach",
+                                color = NeonBlue,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextGray
+                        )
+                    }
+                }
+
+                Divider(color = SurfaceCardBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                // Chat Messages List
+                val lazyListState = rememberLazyListState()
+
+                // Automatically scroll to bottom when history changes
+                LaunchedEffect(viewModel.gyaniChatHistory.size) {
+                    if (viewModel.gyaniChatHistory.isNotEmpty()) {
+                        lazyListState.animateScrollToItem(viewModel.gyaniChatHistory.size - 1)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(viewModel.gyaniChatHistory.size) { index ->
+                            val msg = viewModel.gyaniChatHistory[index]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Cancel,
-                                    contentDescription = "Stop Timer",
-                                    tint = FailureMagenta,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (msg.isUser) NeonBlueDim else SurfaceCardBorder
+                                    ),
+                                    shape = RoundedCornerShape(
+                                        topStart = 12.dp,
+                                        topEnd = 12.dp,
+                                        bottomStart = if (msg.isUser) 12.dp else 0.dp,
+                                        bottomEnd = if (msg.isUser) 0.dp else 12.dp
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(0.85f)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = if (msg.isUser) "You" else "Gyani",
+                                            color = if (msg.isUser) NeonBlue else TextWhite,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        )
+                                        Text(
+                                            text = msg.text,
+                                            color = TextWhite,
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (viewModel.isGyaniAiLoading) {
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = SurfaceCardBorder),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(0.85f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CircularProgressIndicator(
+                                                color = NeonBlue,
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = "Gyani is typing & updating...",
+                                                color = TextGray,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                }
 
-                    // Standard Navigation Bar
-                    NavigationBar(
-                        containerColor = SurfaceCard,
-                        tonalElevation = 8.dp
+                Divider(color = SurfaceCardBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                // Suggestion chips row
+                val suggestions = listOf(
+                    "Add face pull to Monday Pull Day",
+                    "Change split to Bro Split",
+                    "How many calories should I eat?"
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    items(suggestions.size) { index ->
+                        val suggestion = suggestions[index]
+                        Box(
+                            modifier = Modifier
+                                .background(SurfaceCardBorder, RoundedCornerShape(20.dp))
+                                .border(1.dp, SurfaceCardBorder, RoundedCornerShape(20.dp))
+                                .clickable {
+                                    viewModel.sendGyaniChatMessage(suggestion)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = suggestion, color = TextWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Input field
+                var textInput by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = textInput,
+                        onValueChange = { textInput = it },
+                        placeholder = { Text("Ask Gyani anything...", color = TextGray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            focusedBorderColor = NeonBlue,
+                            unfocusedBorderColor = SurfaceCardBorder
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            if (textInput.trim().isNotEmpty()) {
+                                viewModel.sendGyaniChatMessage(textInput)
+                                textInput = ""
+                            }
+                        },
+                        modifier = Modifier
+                            .background(NeonBlue, CircleShape)
+                            .size(48.dp)
                     ) {
-                        NavigationBarItem(
-                            selected = viewModel.currentScreen == "dashboard" || viewModel.currentScreen == "ai_coach",
-                            onClick = { viewModel.currentScreen = "dashboard" },
-                            icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
-                            label = { Text("Home") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = NeonBlue,
-                                indicatorColor = NeonBlue,
-                                unselectedIconColor = TextGray,
-                                unselectedTextColor = TextGray
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = viewModel.currentScreen == "splits",
-                            onClick = { viewModel.currentScreen = "splits" },
-                            icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Splits") },
-                            label = { Text("Splits") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = NeonBlue,
-                                indicatorColor = NeonBlue,
-                                unselectedIconColor = TextGray,
-                                unselectedTextColor = TextGray
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = viewModel.currentScreen == "exercise_library",
-                            onClick = { viewModel.currentScreen = "exercise_library" },
-                            icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "Library") },
-                            label = { Text("Exercises") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = NeonBlue,
-                                indicatorColor = NeonBlue,
-                                unselectedIconColor = TextGray,
-                                unselectedTextColor = TextGray
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = viewModel.currentScreen == "progress",
-                            onClick = { viewModel.currentScreen = "progress" },
-                            icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Analytics") },
-                            label = { Text("Progress") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = NeonBlue,
-                                indicatorColor = NeonBlue,
-                                unselectedIconColor = TextGray,
-                                unselectedTextColor = TextGray
-                            )
-                        )
-                        NavigationBarItem(
-                            selected = viewModel.currentScreen == "nutrition",
-                            onClick = { viewModel.currentScreen = "nutrition" },
-                            icon = { Icon(Icons.Default.Restaurant, contentDescription = "Nutrition") },
-                            label = { Text("Nutrition") },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = NeonBlue,
-                                indicatorColor = NeonBlue,
-                                unselectedIconColor = TextGray,
-                                unselectedTextColor = TextGray
-                            )
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Send",
+                            tint = Color.Black
                         )
                     }
                 }
             }
-        },
-        containerColor = DarkBackground,
-        content = content
-    )
+        }
+    }
 }
 
 // --- Screen 1: Onboarding / Landing ---
 
 @Composable
-fun OnboardingScreen(onGetStarted: () -> Unit) {
+fun OnboardingScreen(viewModel: WorkoutViewModel, onGetStarted: () -> Unit) {
+    var step by remember { mutableStateOf(1) }
+    
+    var nameInput by remember { mutableStateOf(viewModel.userName) }
+    var ageInput by remember { mutableStateOf(viewModel.userAge) }
+    var genderInput by remember { mutableStateOf(viewModel.userGender) }
+    var weightInput by remember { mutableStateOf(viewModel.userWeight) }
+    var heightInput by remember { mutableStateOf(viewModel.userHeight) }
+    var goalInput by remember { mutableStateOf(viewModel.userGoal) }
+    var activityInput by remember { mutableStateOf(viewModel.userActivityLevel) }
+    var mealFreqInput by remember { mutableStateOf(viewModel.userMealFrequency) }
+
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(scrollState),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .background(NeonBlueDim, CircleShape)
-                .border(2.dp, NeonBlue, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.FitnessCenter,
-                contentDescription = "AuraFit logo",
-                tint = NeonBlue,
-                modifier = Modifier.size(50.dp)
+        if (step == 1) {
+            Spacer(modifier = Modifier.height(40.dp))
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .background(NeonBlueDim, CircleShape)
+                    .border(2.dp, NeonBlue, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FitnessCenter,
+                    contentDescription = "AuraFit logo",
+                    tint = NeonBlue,
+                    modifier = Modifier.size(50.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            Text(
+                text = "AURAFIT",
+                color = TextWhite,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 32.sp,
+                letterSpacing = 4.sp
             )
+
+            Text(
+                text = "ELEVATE YOUR STRENGTH",
+                color = NeonBlue,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                letterSpacing = 2.sp
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "A sleek, premium, and offline-first personal tracking environment optimized with smart performance logging.",
+                color = TextGray,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            var showOnboardingImport by remember { mutableStateOf(false) }
+            var onboardingImportJson by remember { mutableStateOf("") }
+            val onboardingContext = LocalContext.current
+
+            if (showOnboardingImport) {
+                OutlinedTextField(
+                    value = onboardingImportJson,
+                    onValueChange = { onboardingImportJson = it },
+                    label = { Text("Paste JSON Backup Here", color = TextGray) },
+                    modifier = Modifier.fillMaxWidth().height(120.dp).padding(horizontal = 24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = NeonBlue,
+                        unfocusedBorderColor = SurfaceCardBorder
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TextButton(
+                        onClick = { showOnboardingImport = false },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel", color = TextGray)
+                    }
+                    Button(
+                        onClick = {
+                            val msg = viewModel.importBackupJson(onboardingImportJson)
+                            Toast.makeText(onboardingContext, msg, Toast.LENGTH_LONG).show()
+                            if (msg.startsWith("Backup imported successfully")) {
+                                onGetStarted() // Go directly to main app!
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ActiveGreen),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Import & Restore", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                NeonButton(
+                    text = "GET STARTED",
+                    onClick = { step = 2 },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                TextButton(
+                    onClick = { showOnboardingImport = true }
+                ) {
+                    Icon(imageVector = Icons.Default.Restore, contentDescription = null, tint = NeonBlue, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "IMPORT EXISTING DATA BACKUP", color = NeonBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        } else if (step == 2) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "TELL US ABOUT YOURSELF",
+                color = TextWhite,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp,
+                letterSpacing = 1.sp
+            )
+            Text(
+                text = "Gyani AI will calculate the ideal strategy for you",
+                color = NeonBlue,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+            )
+
+            OutlinedTextField(
+                value = nameInput,
+                onValueChange = { nameInput = it },
+                label = { Text("Your Name", color = TextGray) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextWhite,
+                    unfocusedTextColor = TextWhite,
+                    focusedBorderColor = NeonBlue,
+                    unfocusedBorderColor = SurfaceCardBorder
+                ),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            )
+
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                OutlinedTextField(
+                    value = ageInput,
+                    onValueChange = { ageInput = it },
+                    label = { Text("Age", color = TextGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = NeonBlue,
+                        unfocusedBorderColor = SurfaceCardBorder
+                    ),
+                    modifier = Modifier.weight(1f).padding(end = 6.dp)
+                )
+
+                OutlinedTextField(
+                    value = genderInput,
+                    onValueChange = { genderInput = it },
+                    label = { Text("Gender (M/F/O)", color = TextGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = NeonBlue,
+                        unfocusedBorderColor = SurfaceCardBorder
+                    ),
+                    modifier = Modifier.weight(1f).padding(start = 6.dp)
+                )
+            }
+
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                OutlinedTextField(
+                    value = weightInput,
+                    onValueChange = { weightInput = it },
+                    label = { Text("Weight (kg)", color = TextGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = NeonBlue,
+                        unfocusedBorderColor = SurfaceCardBorder
+                    ),
+                    modifier = Modifier.weight(1f).padding(end = 6.dp)
+                )
+
+                OutlinedTextField(
+                    value = heightInput,
+                    onValueChange = { heightInput = it },
+                    label = { Text("Height (cm)", color = TextGray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedBorderColor = NeonBlue,
+                        unfocusedBorderColor = SurfaceCardBorder
+                    ),
+                    modifier = Modifier.weight(1f).padding(start = 6.dp)
+                )
+            }
+
+            OutlinedTextField(
+                value = mealFreqInput,
+                onValueChange = { mealFreqInput = it },
+                label = { Text("Meal Frequency (How many times you eat per day)", color = TextGray) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextWhite,
+                    unfocusedTextColor = TextWhite,
+                    focusedBorderColor = NeonBlue,
+                    unfocusedBorderColor = SurfaceCardBorder
+                ),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Your Fitness Goal:", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                listOf("Lose Weight", "Gain Muscle", "Maintain").forEach { goal ->
+                    val isSelected = goalInput.equals(goal, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                            .background(if (isSelected) NeonBlueDim else SurfaceCard, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (isSelected) NeonBlue else SurfaceCardBorder, RoundedCornerShape(8.dp))
+                            .clickable { goalInput = goal }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = goal, color = if (isSelected) NeonBlue else TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Activity Level:", color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                listOf("Sedentary", "Active", "Athlete").forEach { level ->
+                    val isSelected = activityInput.equals(level, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(4.dp)
+                            .background(if (isSelected) NeonBlueDim else SurfaceCard, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (isSelected) NeonBlue else SurfaceCardBorder, RoundedCornerShape(8.dp))
+                            .clickable { activityInput = level }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = level, color = if (isSelected) NeonBlue else TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            NeonButton(
+                text = "CALCULATE MY PLAN",
+                onClick = {
+                    if (nameInput.trim().isNotEmpty() && weightInput.trim().isNotEmpty() && heightInput.trim().isNotEmpty()) {
+                        viewModel.saveUserProfile(
+                            name = nameInput,
+                            age = ageInput,
+                            gender = genderInput,
+                            weight = weightInput,
+                            height = heightInput,
+                            goal = goalInput,
+                            activityLevel = activityInput,
+                            mealFrequency = mealFreqInput
+                        )
+                        step = 3
+                        viewModel.analyzeUserBodyMetrics()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            )
+        } else if (step == 3) {
+            Spacer(modifier = Modifier.height(40.dp))
+            if (viewModel.isBodyAnalysisLoading) {
+                CircularProgressIndicator(color = NeonBlue, modifier = Modifier.size(60.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Gyani is calculating your customized metabolic targets...",
+                    color = TextWhite,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium
+                )
+            } else {
+                Text(
+                    text = "YOUR METABOLIC REPORT",
+                    color = NeonBlue,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp,
+                    letterSpacing = 1.sp
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, SurfaceCardBorder),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("DAILY CALORIE TARGET", color = TextGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("${viewModel.targetCalories} kcal", color = NeonBlue, fontSize = 36.sp, fontWeight = FontWeight.ExtraBold)
+                        
+                        Divider(color = SurfaceCardBorder, modifier = Modifier.padding(vertical = 12.dp))
+                        
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("PROTEIN", color = TextGray, fontSize = 10.sp)
+                                Text("${viewModel.targetProtein}g", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("CARBS", color = TextGray, fontSize = 10.sp)
+                                Text("${viewModel.targetCarbs}g", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("FAT", color = TextGray, fontSize = 10.sp)
+                                Text("${viewModel.targetFat}g", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, SurfaceCardBorder),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "GYANI'S COACHING STRATEGY",
+                            color = TextWhite,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = viewModel.bodyAnalysisResult ?: "Calculated default strategy based on your targets.",
+                            color = TextGray,
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(30.dp))
+                
+                NeonButton(
+                    text = "SAVE & ENTER",
+                    onClick = onGetStarted,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        Text(
-            text = "AURAFIT",
-            color = TextWhite,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 32.sp,
-            letterSpacing = 4.sp
-        )
-
-        Text(
-            text = "ELEVATE YOUR STRENGTH",
-            color = NeonBlue,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            letterSpacing = 2.sp
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "A sleek, premium, and offline-first personal tracking environment optimized with smart performance logging.",
-            color = TextGray,
-            fontSize = 15.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 22.sp,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(50.dp))
-
-        NeonButton(
-            text = "GET STARTED",
-            onClick = onGetStarted,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-        )
     }
 }
 
@@ -396,6 +997,14 @@ fun DashboardScreen(
     ) {
         Spacer(modifier = Modifier.height(36.dp))
 
+        val displayName = viewModel.userName.ifBlank { "Alex Rivera" }
+        val initials = displayName.split(" ")
+            .filter { it.isNotEmpty() }
+            .map { it.first().uppercaseChar() }
+            .take(2)
+            .joinToString("")
+            .ifEmpty { "AR" }
+
         // Premium Elegant Dark Header (From Design HTML)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -411,7 +1020,7 @@ fun DashboardScreen(
                     letterSpacing = 2.sp
                 )
                 Text(
-                    text = "Alex Rivera",
+                    text = displayName,
                     color = TextWhite,
                     fontWeight = FontWeight.Bold,
                     fontSize = 25.sp,
@@ -443,7 +1052,7 @@ fun DashboardScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "AR",
+                        text = initials,
                         color = TextWhite,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -700,19 +1309,10 @@ fun DashboardScreen(
 
                 daysLabels.forEachIndexed { idx, label ->
                     val volume = daysVolume[idx]
-                    val percentage = if (volume > 0f) {
-                        (volume / maxVol).coerceIn(0.15f, 1f)
+                    val percentage = if (maxVol > 0f && volume > 0f) {
+                        (volume / maxVol).coerceIn(0.12f, 1f)
                     } else {
-                        when (idx) {
-                            0 -> 0.40f
-                            1 -> 0.70f
-                            2 -> 0.55f
-                            3 -> 0.85f
-                            4 -> 0.30f
-                            5 -> 0.10f
-                            6 -> 0.20f
-                            else -> 0.30f
-                        }
+                        0.02f
                     }
 
                     val isToday = idx == currentDayIdx
@@ -981,6 +1581,16 @@ fun SplitsScreen(
     var newDayName by remember { mutableStateOf("") }
     var newDayOfWeek by remember { mutableStateOf("Monday") }
 
+    var expandedSplitId by remember { mutableStateOf<Int?>(null) }
+    val activeSplit by viewModel.activeSplit.collectAsState()
+
+    // Automatically expand the active split when it updates
+    LaunchedEffect(activeSplit) {
+        if (expandedSplitId == null && activeSplit != null) {
+            expandedSplitId = activeSplit?.id
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1013,7 +1623,7 @@ fun SplitsScreen(
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Select an existing training strategy or define your own tailored routine split. Manage splits, delete custom strategies, or add custom workout days below.",
+            text = "Select a template below or define your custom split. Tap a strategy to expand its scheduled days, active exercises, or to activate it.",
             color = TextGray,
             fontSize = 13.sp
         )
@@ -1022,11 +1632,21 @@ fun SplitsScreen(
 
         LazyColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(splits) { split ->
+                val isExpanded = expandedSplitId == split.id
+                val daysState = viewModel.getDaysForSplit(split.id).collectAsState(initial = emptyList())
+                val dayCount = daysState.value.size
+                val summaryText = if (dayCount == 0) "No training days scheduled" else "$dayCount training days • ${7 - dayCount} rest days"
+
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize()
+                        .clickable {
+                            expandedSplitId = if (isExpanded) null else split.id
+                        },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (split.isActive) SurfaceCardBorder else SurfaceCard
@@ -1036,21 +1656,39 @@ fun SplitsScreen(
                         if (split.isActive) NeonBlue else SurfaceCardBorder
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = split.name,
+                                        color = TextWhite,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                    if (split.isActive) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .background(ActiveGreen.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                                .border(1.dp, ActiveGreen, RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "ACTIVE",
+                                                color = ActiveGreen,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 9.sp
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
-                                    text = split.name,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
-                                Text(
-                                    text = if (split.isCustom) "Custom User Split" else "Built-in Template",
+                                    text = if (split.isCustom) "Custom Strategy" else "Predefined Routine",
                                     color = if (split.isActive) NeonBlue else TextGray,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
@@ -1062,93 +1700,192 @@ fun SplitsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 if (split.isCustom) {
-                                    IconButton(
-                                        onClick = {
-                                            splitToDelete = split
-                                            showDeleteSplitConfirm = true
-                                        },
-                                        modifier = Modifier.size(36.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(FailureMagenta.copy(alpha = 0.1f), CircleShape)
+                                            .clickable {
+                                                splitToDelete = split
+                                                showDeleteSplitConfirm = true
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete Split",
-                                            tint = FailureMagenta
+                                            tint = FailureMagenta.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
 
                                 if (!split.isActive) {
-                                    NeonButton(
-                                        text = "ACTIVATE",
-                                        onClick = { viewModel.activateSplit(split) },
-                                        modifier = Modifier.height(36.dp)
-                                    )
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                brush = Brush.horizontalGradient(listOf(BlueGradientStart, BlueGradientEnd)),
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { viewModel.activateSplit(split) }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "Active",
-                                            tint = ActiveGreen,
-                                            modifier = Modifier.size(18.dp)
+                                        Text(
+                                            text = "ACTIVATE",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(text = "ACTIVE", color = ActiveGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
+
+                                Icon(
+                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    tint = NeonBlue,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        if (!isExpanded) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = summaryText,
+                                color = TextGray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp)
+                            ) {
+                                HorizontalDivider(color = SurfaceCardBorder, thickness = 1.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                        // Show split days if clicked or view detail
-                        val daysState = viewModel.getDaysForSplit(split.id).collectAsState(initial = emptyList())
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            for (day in daysState.value) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(SurfaceCard, RoundedCornerShape(10.dp))
-                                        .border(1.dp, SurfaceCardBorder, RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            viewModel.selectedDay = day
-                                            viewModel.selectedSplit = split
-                                            viewModel.currentScreen = "split_day_details"
+                                Text(
+                                    text = "WEEKLY SCHEDULE",
+                                    color = NeonBlue,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    letterSpacing = 1.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+
+                                if (daysState.value.isEmpty()) {
+                                    Text(
+                                        text = "No workout days scheduled. Add one below!",
+                                        color = TextGray,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(vertical = 12.dp)
+                                    )
+                                } else {
+                                    val sortedDays = daysState.value.sortedWith(compareBy {
+                                        when (it.dayOfWeek.lowercase()) {
+                                            "monday" -> 1
+                                            "tuesday" -> 2
+                                            "wednesday" -> 3
+                                            "thursday" -> 4
+                                            "friday" -> 5
+                                            "saturday" -> 6
+                                            "sunday" -> 7
+                                            else -> 8
                                         }
-                                        .padding(vertical = 8.dp, horizontal = 12.dp)
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(text = day.name, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text(text = day.dayOfWeek.take(3), color = TextGray, fontSize = 10.sp)
+                                    })
+
+                                    sortedDays.forEach { day ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 6.dp)
+                                                .background(SurfaceCard, RoundedCornerShape(12.dp))
+                                                .border(BorderStroke(1.dp, if (split.isActive) NeonBlueDim else SurfaceCardBorder), RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    viewModel.selectedDay = day
+                                                    viewModel.selectedSplit = split
+                                                    viewModel.currentScreen = "split_day_details"
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(if (split.isActive) NeonBlueDim else SurfaceCardBorder, RoundedCornerShape(8.dp))
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = day.dayOfWeek.take(3).uppercase(),
+                                                        color = if (split.isActive) NeonBlue else TextWhite,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.width(14.dp))
+
+                                                Text(
+                                                    text = day.name,
+                                                    color = TextWhite,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                            }
+
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                val exercisesState = viewModel.getExercisesForDay(day.id).collectAsState(initial = emptyList())
+                                                val count = exercisesState.value.size
+                                                if (count > 0) {
+                                                    Text(
+                                                        text = "$count ${if (count == 1) "ex" else "exs"}",
+                                                        color = TextGray,
+                                                        fontSize = 12.sp,
+                                                        modifier = Modifier.padding(end = 8.dp)
+                                                    )
+                                                }
+
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                    contentDescription = "View exercises",
+                                                    tint = NeonBlue,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                            }
 
-                            // Add Workout Day item inside split card
-                            Box(
-                                modifier = Modifier
-                                    .background(SurfaceCardBorder, RoundedCornerShape(10.dp))
-                                    .border(1.dp, NeonBlueDim, RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        selectedSplitForNewDay = split
-                                        showAddDayDialog = true
-                                    }
-                                    .padding(vertical = 8.dp, horizontal = 12.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedSplitForNewDay = split
+                                            showAddDayDialog = true
+                                        }
+                                        .border(BorderStroke(1.dp, NeonBlueDim), RoundedCornerShape(12.dp))
+                                        .padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Day",
+                                        contentDescription = "Add day",
                                         tint = NeonBlue,
-                                        modifier = Modifier.size(12.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(text = "ADD DAY", color = NeonBlue, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "ADD WORKOUT DAY",
+                                        color = NeonBlue,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 0.5.sp
+                                    )
                                 }
                             }
                         }
@@ -2367,9 +3104,38 @@ fun ActiveWorkoutScreen(
 @Composable
 fun ProgressScreen(
     viewModel: WorkoutViewModel,
-    sessions: List<WorkoutSession>
+    sessions: List<WorkoutSession>,
+    measurements: List<BodyMeasurement>
 ) {
     val prs = viewModel.calculatePRs()
+
+    var showEditWeightDialog by remember { mutableStateOf(false) }
+    var weightEditValue by remember { mutableStateOf("") }
+
+    // Calculate weekly workouts
+    val sevenDaysAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+    val workoutsThisWeek = sessions.count { it.startTime >= sevenDaysAgo }
+    val targetWorkouts = when {
+        viewModel.userActivityLevel.contains("sedentary", ignoreCase = true) -> 2
+        viewModel.userActivityLevel.contains("athlete", ignoreCase = true) -> 5
+        else -> 3
+    }
+
+    // Weight tracking
+    val sortedMeasurements = measurements.sortedBy { it.timestamp }
+    val currentWeight = if (sortedMeasurements.isNotEmpty()) {
+        sortedMeasurements.last().weight
+    } else {
+        viewModel.userWeight.toFloatOrNull() ?: 70f
+    }
+
+    val previousWeight = if (sortedMeasurements.size > 1) {
+        sortedMeasurements[sortedMeasurements.size - 2].weight
+    } else {
+        viewModel.userWeight.toFloatOrNull() ?: 70f
+    }
+
+    val weightDiff = currentWeight - previousWeight
 
     Column(
         modifier = Modifier
@@ -2409,6 +3175,137 @@ fun ProgressScreen(
         }
 
         Spacer(modifier = Modifier.height(18.dp))
+
+        // Weight Progress & Insights Card
+        Text(text = "BODY STATS & FREQUENCY ANALYTICS", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        NeonCard(modifier = Modifier.fillMaxWidth()) {
+            val frequencyIsGood = workoutsThisWeek >= targetWorkouts
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                weightEditValue = currentWeight.toString()
+                                showEditWeightDialog = true
+                            }
+                            .padding(4.dp)
+                    ) {
+                        Column {
+                            Text(text = "CURRENT WEIGHT", color = TextGray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "$currentWeight kg", color = TextWhite, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Weight",
+                                    tint = NeonBlue,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "PREVIOUS WEIGHT", color = TextGray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "$previousWeight kg", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+
+                    // Change Indicator
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(text = "NET CHANGE", color = TextGray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        val changeSign = if (weightDiff > 0f) "+" else ""
+                        val changeColor = if (viewModel.userGoal.contains("lose", ignoreCase = true)) {
+                            if (weightDiff <= 0f) ActiveGreen else FailureMagenta
+                        } else if (viewModel.userGoal.contains("gain", ignoreCase = true)) {
+                            if (weightDiff >= 0f) ActiveGreen else FailureMagenta
+                        } else {
+                            if (Math.abs(weightDiff) < 0.5f) ActiveGreen else TextGray
+                        }
+                        Text(
+                            text = "$changeSign${String.format(Locale.getDefault(), "%.1f", weightDiff)} kg",
+                            color = changeColor,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
+                Divider(color = SurfaceCardBorder, modifier = Modifier.padding(vertical = 14.dp))
+
+                // Frequency analytics row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = "WORKOUTS THIS WEEK", color = TextGray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "$workoutsThisWeek", color = NeonBlue, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text(text = " / $targetWorkouts target", color = TextGray, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+                        }
+                    }
+
+                    // Evaluation Badge
+                    val statusText = if (frequencyIsGood) "GOING GOOD 🔥" else "INCREASE FREQUENCY ⚡"
+                    val statusColor = if (frequencyIsGood) ActiveGreen else OrangeWarm
+
+                    Box(
+                        modifier = Modifier
+                            .background(statusColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                            .border(1.dp, statusColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = statusText,
+                            color = statusColor,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Gyani's Dynamic Progress Advice
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SurfaceCardBorder.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = NeonBlue,
+                        modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            !frequencyIsGood -> "Gyani recommends adding at least ${targetWorkouts - workoutsThisWeek} more workout session(s) this week. Increasing your training frequency is key to triggering muscle synthesis and optimizing metabolic output for your '${viewModel.userGoal}' goal!"
+                            weightDiff < 0f && viewModel.userGoal.contains("lose", ignoreCase = true) -> "Excellent work! You are currently losing weight at a healthy pace. Your consistency in logging meals and workouts is paying off. Keep pushing and maintain your current caloric targets!"
+                            weightDiff > 0f && viewModel.userGoal.contains("gain", ignoreCase = true) -> "Fantastic growth! You are successfully gaining mass. Continue tracking your protein intake of ${viewModel.targetProtein}g to ensure the weight goes towards muscle mass. You are going strong!"
+                            else -> "You are going great! Your consistency is exemplary. Continue logging your daily nutrition and training splits to maintain high training volume."
+                        },
+                        color = TextGray,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Personal Records Hall of Badges
         Text(text = "PERSONAL RECORDS & BADGES", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -2498,7 +3395,9 @@ fun ProgressScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Interactive Calendar Layout Grid
-        Text(text = "TRAINING COMPLIANCE CALENDAR", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        val cal = Calendar.getInstance()
+        val currentMonthName = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        Text(text = "TRAINING COMPLIANCE - ${currentMonthName.uppercase(Locale.getDefault())}", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(modifier = Modifier.height(10.dp))
 
         NeonCard(modifier = Modifier.fillMaxWidth()) {
@@ -2515,14 +3414,27 @@ fun ProgressScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Highlight days of the month with completed workouts
-            val completedDates = sessions.map {
-                val cal = Calendar.getInstance()
-                cal.timeInMillis = it.startTime
-                cal.get(Calendar.DAY_OF_MONTH)
+            val currentMonth = cal.get(Calendar.MONTH)
+            val currentYear = cal.get(Calendar.YEAR)
+            val completedDates = sessions.filter {
+                val sessionCal = Calendar.getInstance()
+                sessionCal.timeInMillis = it.startTime
+                sessionCal.get(Calendar.MONTH) == currentMonth && sessionCal.get(Calendar.YEAR) == currentYear
+            }.map {
+                val sessionCal = Calendar.getInstance()
+                sessionCal.timeInMillis = it.startTime
+                sessionCal.get(Calendar.DAY_OF_MONTH)
             }.toSet()
 
-            val totalDays = 28
-            val rows = totalDays / 7
+            val totalDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val startCal = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+            }
+            val startDayOfWeek = (startCal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday is 0
+
+            val totalSlots = totalDays + startDayOfWeek
+            val rows = (totalSlots + 6) / 7
+
             Column {
                 repeat(rows) { rowIndex ->
                     Row(
@@ -2532,8 +3444,10 @@ fun ProgressScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         repeat(7) { colIndex ->
-                            val dayNum = rowIndex * 7 + colIndex + 1
-                            val isCompleted = completedDates.contains(dayNum)
+                            val slotIndex = rowIndex * 7 + colIndex
+                            val dayNum = slotIndex - startDayOfWeek + 1
+                            val isValidDay = dayNum in 1..totalDays
+                            val isCompleted = isValidDay && completedDates.contains(dayNum)
 
                             Box(
                                 modifier = Modifier
@@ -2541,7 +3455,7 @@ fun ProgressScreen(
                                     .aspectRatio(1f)
                                     .padding(4.dp)
                                     .background(
-                                        if (isCompleted) NeonBlue else SurfaceCardBorder,
+                                        if (isCompleted) NeonBlue else if (isValidDay) SurfaceCardBorder else Color.Transparent,
                                         CircleShape
                                     )
                                     .border(
@@ -2551,12 +3465,14 @@ fun ProgressScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "$dayNum",
-                                    color = if (isCompleted) Color.Black else TextWhite,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
+                                if (isValidDay) {
+                                    Text(
+                                        text = "$dayNum",
+                                        color = if (isCompleted) Color.Black else TextWhite,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -2573,6 +3489,57 @@ fun ProgressScreen(
             modifier = Modifier.fillMaxWidth(),
             icon = Icons.Default.AccessibilityNew
         )
+
+        if (showEditWeightDialog) {
+            AlertDialog(
+                onDismissRequest = { showEditWeightDialog = false },
+                title = { Text("Update Current Weight", color = TextWhite, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            text = "Update your current weight. This will log a new weight point on your timeline and automatically update all your nutrition and calorie targets!",
+                            color = TextGray,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        OutlinedTextField(
+                            value = weightEditValue,
+                            onValueChange = { weightEditValue = it },
+                            label = { Text("Weight (kg)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite,
+                                unfocusedTextColor = TextWhite,
+                                focusedBorderColor = NeonBlue,
+                                unfocusedBorderColor = TextGray
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val w = weightEditValue.toFloatOrNull() ?: 0f
+                            if (w > 0f) {
+                                viewModel.updateCurrentWeight(w)
+                                showEditWeightDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Save", color = NeonBlue, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditWeightDialog = false }) {
+                        Text("Cancel", color = TextGray)
+                    }
+                },
+                containerColor = SurfaceCard
+            )
+        }
+
         Spacer(modifier = Modifier.height(80.dp))
     }
 }
@@ -2827,8 +3794,13 @@ fun SettingsScreen(viewModel: WorkoutViewModel) {
 
                 Button(
                     onClick = {
-                        val msg = viewModel.importBackupJson("")
-                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        if (!showBackupString) {
+                            showBackupString = true
+                            backupJsonText = ""
+                        } else {
+                            val msg = viewModel.importBackupJson(backupJsonText)
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceCard),
                     modifier = Modifier.weight(1f).border(1.dp, SurfaceCardBorder, RoundedCornerShape(12.dp)),
@@ -2836,7 +3808,7 @@ fun SettingsScreen(viewModel: WorkoutViewModel) {
                 ) {
                     Icon(imageVector = Icons.Default.Restore, contentDescription = null, tint = ActiveGreen)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "IMPORT", color = ActiveGreen, fontWeight = FontWeight.Bold)
+                    Text(text = if (showBackupString) "CONFIRM" else "IMPORT", color = ActiveGreen, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -2844,9 +3816,9 @@ fun SettingsScreen(viewModel: WorkoutViewModel) {
                 Spacer(modifier = Modifier.height(14.dp))
                 OutlinedTextField(
                     value = backupJsonText,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    onValueChange = { backupJsonText = it },
+                    label = { Text("Paste JSON Backup here to Import / Copy to Export", color = TextGray) },
+                    modifier = Modifier.fillMaxWidth().height(150.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite, focusedBorderColor = NeonBlue, unfocusedBorderColor = SurfaceCardBorder),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 )
@@ -2956,7 +3928,6 @@ fun NutritionScreen(
     viewModel: WorkoutViewModel,
     foodLogs: List<FoodLog>
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Diary, 1 = AI Bot
     var showAddManualDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -3016,8 +3987,8 @@ fun NutritionScreen(
                         .size(40.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Targets",
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Goals",
                         tint = NeonBlue,
                         modifier = Modifier.size(18.dp)
                     )
@@ -3041,53 +4012,16 @@ fun NutritionScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Custom Premium Navigation Tabs
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(SurfaceCard, RoundedCornerShape(12.dp))
-                .padding(4.dp)
-        ) {
-            val tabTitles = listOf("Daily Diary", "AI Calorie Bot 🤖")
-            tabTitles.forEachIndexed { index, title ->
-                val isSelected = selectedTab == index
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(
-                            if (isSelected) NeonBlue else Color.Transparent,
-                            RoundedCornerShape(8.dp)
-                        )
-                        .clickable { selectedTab = index }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title,
-                        color = if (isSelected) Color.Black else TextGray,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        if (selectedTab == 0) {
-            // Diary Tab
-            NutritionDiaryView(
-                viewModel = viewModel,
-                todaysLogs = todaysLogs,
-                totalCaloriesEaten = totalCaloriesEaten,
-                totalProteinEaten = totalProteinEaten,
-                totalCarbsEaten = totalCarbsEaten,
-                totalFatEaten = totalFatEaten
-            )
-        } else {
-            // AI Bot Tab
-            NutritionAiBotView(viewModel = viewModel)
-        }
+        // Diary directly displayed
+        NutritionDiaryView(
+            viewModel = viewModel,
+            todaysLogs = todaysLogs,
+            totalCaloriesEaten = totalCaloriesEaten,
+            totalProteinEaten = totalProteinEaten,
+            totalCarbsEaten = totalCarbsEaten,
+            totalFatEaten = totalFatEaten,
+            onEditTargetsClick = { showSettingsDialog = true }
+        )
     }
 
     // Goal Targets Dialog
@@ -3170,6 +4104,32 @@ fun NutritionScreen(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            val suggested = viewModel.getOfflineSuggestedTargets()
+                            calInput = suggested.calories.toString()
+                            proteinInput = suggested.protein.toString()
+                            carbsInput = suggested.carbs.toString()
+                            fatInput = suggested.fat.toString()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceCard),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, NeonBlue.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = NeonBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("AUTO-CALCULATE FROM PROFILE", color = NeonBlue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
@@ -3182,10 +4142,10 @@ fun NutritionScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Button(
                             onClick = {
-                                calInput.toIntOrNull()?.let { viewModel.targetCalories = it }
-                                proteinInput.toIntOrNull()?.let { viewModel.targetProtein = it }
-                                carbsInput.toIntOrNull()?.let { viewModel.targetCarbs = it }
-                                fatInput.toIntOrNull()?.let { viewModel.targetFat = it }
+                                calInput.toIntOrNull()?.let { viewModel.updateTargetCalories(it) }
+                                proteinInput.toIntOrNull()?.let { viewModel.updateTargetProtein(it) }
+                                carbsInput.toIntOrNull()?.let { viewModel.updateTargetCarbs(it) }
+                                fatInput.toIntOrNull()?.let { viewModel.updateTargetFat(it) }
                                 showSettingsDialog = false
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = NeonBlue)
@@ -3373,7 +4333,8 @@ fun NutritionDiaryView(
     totalCaloriesEaten: Int,
     totalProteinEaten: Float,
     totalCarbsEaten: Float,
-    totalFatEaten: Float
+    totalFatEaten: Float,
+    onEditTargetsClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -3382,10 +4343,12 @@ fun NutritionDiaryView(
             .fillMaxSize()
             .verticalScroll(scrollState)
     ) {
-        // Daily Summary Ring & Progress Card
+        // Daily Summary Ring & Progress Card (Clickable to Edit Targets!)
         NeonCard(
-            modifier = Modifier.fillMaxWidth(),
-            borderColor = NeonBlue.copy(alpha = 0.25f)
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onEditTargetsClick() },
+            borderColor = NeonBlue.copy(alpha = 0.35f)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Row(
@@ -3394,12 +4357,21 @@ fun NutritionDiaryView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(
-                            text = "TODAY'S CALORIES",
-                            color = NeonBlue,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "TODAY'S CALORIES",
+                                color = NeonBlue,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Targets",
+                                tint = NeonBlue,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(

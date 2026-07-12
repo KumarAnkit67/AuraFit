@@ -32,8 +32,8 @@ class MainActivity : ComponentActivity() {
             WorkoutViewModelFactory(application, repository)
         }
 
-        // Initially show onboarding screen on launch
-        viewModel.currentScreen = "onboarding"
+        // Initially show onboarding screen on launch if not completed
+        viewModel.currentScreen = if (viewModel.isOnboardingCompleted) "dashboard" else "onboarding"
 
         setContent {
             MyApplicationTheme {
@@ -50,13 +50,13 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
-                    ) { contentPadding ->
+                     ) { contentPadding ->
                         val screenModifier = Modifier.padding(contentPadding)
 
                         // State-based high-performance screen navigator (Strong/Hevy persist friendly!)
                         when (viewModel.currentScreen) {
                             "onboarding" -> {
-                                OnboardingScreen(onGetStarted = { viewModel.currentScreen = "dashboard" })
+                                OnboardingScreen(viewModel = viewModel, onGetStarted = { viewModel.currentScreen = "dashboard" })
                             }
                             "dashboard" -> {
                                 DashboardScreen(
@@ -117,7 +117,8 @@ class MainActivity : ComponentActivity() {
                             "progress" -> {
                                 ProgressScreen(
                                     viewModel = viewModel,
-                                    sessions = sessionLogs
+                                    sessions = sessionLogs,
+                                    measurements = measurementLogs
                                 )
                             }
                             "body_measurements" -> {

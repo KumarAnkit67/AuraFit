@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.*
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -494,6 +496,44 @@ class WorkoutViewModel(
                 hip = hip
             )
             repository.insertBodyMeasurement(measurement)
+            
+            // Sync user profile weight to latest logged weight
+            userWeight = weight.toString()
+            prefs.edit().putString("user_weight", weight.toString()).apply()
+        }
+    }
+
+    fun updateCurrentWeight(weight: Float) {
+        viewModelScope.launch {
+            val currentList = bodyMeasurements.value
+            val lastFat = currentList.firstOrNull()?.bodyFat ?: 0f
+            val lastChest = currentList.firstOrNull()?.chest ?: 0f
+            val lastWaist = currentList.firstOrNull()?.waist ?: 0f
+            val lastArms = currentList.firstOrNull()?.arms ?: 0f
+            val lastThighs = currentList.firstOrNull()?.thighs ?: 0f
+            val lastCalves = currentList.firstOrNull()?.calves ?: 0f
+            val lastShoulders = currentList.firstOrNull()?.shoulders ?: 0f
+            val lastNeck = currentList.firstOrNull()?.neck ?: 0f
+            val lastHip = currentList.firstOrNull()?.hip ?: 0f
+
+            val measurement = BodyMeasurement(
+                timestamp = System.currentTimeMillis(),
+                weight = weight,
+                bodyFat = lastFat,
+                chest = lastChest,
+                waist = lastWaist,
+                arms = lastArms,
+                thighs = lastThighs,
+                calves = lastCalves,
+                shoulders = lastShoulders,
+                neck = lastNeck,
+                hip = lastHip
+            )
+            repository.insertBodyMeasurement(measurement)
+            
+            // Sync profile
+            userWeight = weight.toString()
+            prefs.edit().putString("user_weight", weight.toString()).apply()
         }
     }
 
@@ -601,20 +641,100 @@ class WorkoutViewModel(
     // --- JSON Backup & Restore ---
     fun exportBackupJson(): String {
         return try {
-            val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-            val type = Types.newParameterizedType(
-                Map::class.java,
-                String::class.java,
-                Any::class.java
-            )
-            // Custom direct serialization can be verbose, so let's build a clean, bulletproof string
-            // representation that makes JSON backup perfectly functional and safe.
             val sb = StringBuilder()
             sb.append("{\n")
             sb.append("  \"app\": \"AuraFit Backup\",\n")
             sb.append("  \"timestamp\": ${System.currentTimeMillis()},\n")
-            sb.append("  \"total_workouts\": ${sessions.value.size},\n")
-            sb.append("  \"measurements_count\": ${bodyMeasurements.value.size}\n")
+            sb.append("  \"user_name\": \"$userName\",\n")
+            sb.append("  \"user_age\": \"$userAge\",\n")
+            sb.append("  \"user_gender\": \"$userGender\",\n")
+            sb.append("  \"user_weight\": \"$userWeight\",\n")
+            sb.append("  \"user_height\": \"$userHeight\",\n")
+            sb.append("  \"user_goal\": \"$userGoal\",\n")
+            sb.append("  \"user_activity_level\": \"$userActivityLevel\",\n")
+            sb.append("  \"user_meal_frequency\": \"$userMealFrequency\",\n")
+            sb.append("  \"is_onboarding_completed\": $isOnboardingCompleted,\n")
+            sb.append("  \"target_calories\": $targetCalories,\n")
+            sb.append("  \"target_protein\": $targetProtein,\n")
+            sb.append("  \"target_carbs\": $targetCarbs,\n")
+            sb.append("  \"target_fat\": $targetFat,\n")
+
+            // Serialize sessions
+            sb.append("  \"sessions\": [\n")
+            val currentSessions = sessions.value
+            currentSessions.forEachIndexed { sIdx, session ->
+                sb.append("    {\n")
+                sb.append("      \"id\": ${session.id},\n")
+                sb.append("      \"splitName\": \"${session.splitName.replace("\"", "\\\"")}\",\n")
+                sb.append("      \"dayName\": \"${session.dayName.replace("\"", "\\\"")}\",\n")
+                sb.append("      \"startTime\": ${session.startTime},\n")
+                sb.append("      \"endTime\": ${session.endTime},\n")
+                sb.append("      \"notes\": \"${session.notes.replace("\"", "\\\"")}\",\n")
+                sb.append("      \"duration\": ${session.duration},\n")
+                sb.append("      \"totalVolume\": ${session.totalVolume},\n")
+                sb.append("      \"totalReps\": ${session.totalReps}\n")
+                sb.append("    }${if (sIdx < currentSessions.size - 1) "," else ""}\n")
+            }
+            sb.append("  ],\n")
+
+            // Serialize sets
+            sb.append("  \"logged_sets\": [\n")
+            val currentSets = allLoggedSets.value
+            currentSets.forEachIndexed { setIdx, set ->
+                sb.append("    {\n")
+                sb.append("      \"sessionId\": ${set.sessionId},\n")
+                sb.append("      \"exerciseId\": ${set.exerciseId},\n")
+                sb.append("      \"exerciseName\": \"${set.exerciseName.replace("\"", "\\\"")}\",\n")
+                sb.append("      \"setIndex\": ${set.setIndex},\n")
+                sb.append("      \"weight\": ${set.weight},\n")
+                sb.append("      \"reps\": ${set.reps},\n")
+                sb.append("      \"isCompleted\": ${set.isCompleted},\n")
+                sb.append("      \"isWarmup\": ${set.isWarmup},\n")
+                sb.append("      \"isDropSet\": ${set.isDropSet},\n")
+                sb.append("      \"isFailure\": ${set.isFailure},\n")
+                sb.append("      \"rpe\": ${set.rpe ?: "null"},\n")
+                sb.append("      \"tempo\": ${if (set.tempo != null) "\"${set.tempo}\"" else "null"},\n")
+                sb.append("      \"restTime\": ${set.restTime}\n")
+                sb.append("    }${if (setIdx < currentSets.size - 1) "," else ""}\n")
+            }
+            sb.append("  ],\n")
+
+            // Serialize body measurements
+            sb.append("  \"body_measurements\": [\n")
+            val currentMeasurements = bodyMeasurements.value
+            currentMeasurements.forEachIndexed { mIdx, bm ->
+                sb.append("    {\n")
+                sb.append("      \"timestamp\": ${bm.timestamp},\n")
+                sb.append("      \"weight\": ${bm.weight},\n")
+                sb.append("      \"bodyFat\": ${bm.bodyFat},\n")
+                sb.append("      \"chest\": ${bm.chest},\n")
+                sb.append("      \"waist\": ${bm.waist},\n")
+                sb.append("      \"arms\": ${bm.arms},\n")
+                sb.append("      \"thighs\": ${bm.thighs},\n")
+                sb.append("      \"calves\": ${bm.calves},\n")
+                sb.append("      \"shoulders\": ${bm.shoulders},\n")
+                sb.append("      \"neck\": ${bm.neck},\n")
+                sb.append("      \"hip\": ${bm.hip}\n")
+                sb.append("    }${if (mIdx < currentMeasurements.size - 1) "," else ""}\n")
+            }
+            sb.append("  ],\n")
+
+            // Serialize food logs
+            sb.append("  \"food_logs\": [\n")
+            val currentFoodLogs = foodLogs.value
+            currentFoodLogs.forEachIndexed { fIdx, fl ->
+                sb.append("    {\n")
+                sb.append("      \"name\": \"${fl.name.replace("\"", "\\\"")}\",\n")
+                sb.append("      \"calories\": ${fl.calories},\n")
+                sb.append("      \"protein\": ${fl.protein},\n")
+                sb.append("      \"carbs\": ${fl.carbs},\n")
+                sb.append("      \"fat\": ${fl.fat},\n")
+                sb.append("      \"mealType\": \"${fl.mealType}\",\n")
+                sb.append("      \"timestamp\": ${fl.timestamp}\n")
+                sb.append("    }${if (fIdx < currentFoodLogs.size - 1) "," else ""}\n")
+            }
+            sb.append("  ]\n")
+
             sb.append("}")
             sb.toString()
         } catch (e: Exception) {
@@ -623,16 +743,578 @@ class WorkoutViewModel(
     }
 
     fun importBackupJson(jsonString: String): String {
-        return "Backup imported successfully! Loaded ${sessions.value.size} sessions and ${bodyMeasurements.value.size} metrics."
+        if (jsonString.trim().isEmpty()) {
+            return "Please paste or provide backup JSON text to import."
+        }
+        return try {
+            val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+            val type = Types.newParameterizedType(
+                Map::class.java,
+                String::class.java,
+                Any::class.java
+            )
+            val adapter = moshi.adapter<Map<String, Any>>(type)
+            val data = adapter.fromJson(jsonString) ?: return "Failed to parse JSON backup. Format is invalid."
+
+            if (data["app"] != "AuraFit Backup") {
+                return "Invalid backup format: App metadata does not match."
+            }
+
+            // Restore user preferences
+            val name = data["user_name"] as? String ?: ""
+            val age = data["user_age"] as? String ?: ""
+            val gender = data["user_gender"] as? String ?: ""
+            val weight = data["user_weight"] as? String ?: ""
+            val height = data["user_height"] as? String ?: ""
+            val goal = data["user_goal"] as? String ?: "Lose weight"
+            val activityLevel = data["user_activity_level"] as? String ?: "Moderately Active"
+            val mealFrequency = data["user_meal_frequency"] as? String ?: ""
+            val onboardingCompleted = data["is_onboarding_completed"] as? Boolean ?: false
+
+            saveUserProfile(name, age, gender, weight, height, goal, activityLevel, mealFrequency)
+            isOnboardingCompleted = onboardingCompleted
+            prefs.edit().putBoolean("is_onboarding_completed", onboardingCompleted).apply()
+
+            (data["target_calories"] as? Number)?.toInt()?.let { updateTargetCalories(it) }
+            (data["target_protein"] as? Number)?.toInt()?.let { updateTargetProtein(it) }
+            (data["target_carbs"] as? Number)?.toInt()?.let { updateTargetCarbs(it) }
+            (data["target_fat"] as? Number)?.toInt()?.let { updateTargetFat(it) }
+
+            val bmList = data["body_measurements"] as? List<Map<String, Any>>
+            val flList = data["food_logs"] as? List<Map<String, Any>>
+            val sessionsList = data["sessions"] as? List<Map<String, Any>>
+            val loggedSetsList = data["logged_sets"] as? List<Map<String, Any>>
+
+            // Parse and restore Room DB lists in a coroutine
+            viewModelScope.launch {
+                // Restore body measurements
+                bmList?.forEach { item ->
+                    repository.insertBodyMeasurement(
+                        BodyMeasurement(
+                            timestamp = (item["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                            weight = (item["weight"] as? Number)?.toFloat() ?: 70f,
+                            bodyFat = (item["bodyFat"] as? Number)?.toFloat() ?: 0f,
+                            chest = (item["chest"] as? Number)?.toFloat() ?: 0f,
+                            waist = (item["waist"] as? Number)?.toFloat() ?: 0f,
+                            arms = (item["arms"] as? Number)?.toFloat() ?: 0f,
+                            thighs = (item["thighs"] as? Number)?.toFloat() ?: 0f,
+                            calves = (item["calves"] as? Number)?.toFloat() ?: 0f,
+                            shoulders = (item["shoulders"] as? Number)?.toFloat() ?: 0f,
+                            neck = (item["neck"] as? Number)?.toFloat() ?: 0f,
+                            hip = (item["hip"] as? Number)?.toFloat() ?: 0f
+                        )
+                    )
+                }
+
+                // Restore food logs
+                flList?.forEach { item ->
+                    repository.insertFoodLog(
+                        FoodLog(
+                            name = item["name"] as? String ?: "Unknown Food",
+                            calories = (item["calories"] as? Number)?.toInt() ?: 0,
+                            protein = (item["protein"] as? Number)?.toFloat() ?: 0f,
+                            carbs = (item["carbs"] as? Number)?.toFloat() ?: 0f,
+                            fat = (item["fat"] as? Number)?.toFloat() ?: 0f,
+                            mealType = item["mealType"] as? String ?: "Breakfast",
+                            timestamp = (item["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                        )
+                    )
+                }
+
+                // Restore sessions & logged sets
+                sessionsList?.forEach { sItem ->
+                    val originalId = (sItem["id"] as? Number)?.toInt() ?: 0
+                    val sessionObj = WorkoutSession(
+                        splitName = sItem["splitName"] as? String ?: "Custom Split",
+                        dayName = sItem["dayName"] as? String ?: "Workout",
+                        startTime = (sItem["startTime"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                        endTime = (sItem["endTime"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+                        notes = sItem["notes"] as? String ?: "",
+                        duration = (sItem["duration"] as? Number)?.toLong() ?: 0,
+                        totalVolume = (sItem["totalVolume"] as? Number)?.toFloat() ?: 0f,
+                        totalReps = (sItem["totalReps"] as? Number)?.toInt() ?: 0
+                    )
+
+                    // Find all logged sets corresponding to this session
+                    val matchingSets = loggedSetsList?.filter {
+                        (it["sessionId"] as? Number)?.toInt() == originalId
+                    }?.map { setItem ->
+                        LoggedSet(
+                            sessionId = 0, // will be overwritten during save
+                            exerciseId = (setItem["exerciseId"] as? Number)?.toInt() ?: 1,
+                            exerciseName = setItem["exerciseName"] as? String ?: "Exercise",
+                            setIndex = (setItem["setIndex"] as? Number)?.toInt() ?: 1,
+                            weight = (setItem["weight"] as? Number)?.toFloat() ?: 0f,
+                            reps = (setItem["reps"] as? Number)?.toInt() ?: 0,
+                            isCompleted = setItem["isCompleted"] as? Boolean ?: true,
+                            isWarmup = setItem["isWarmup"] as? Boolean ?: false,
+                            isDropSet = setItem["isDropSet"] as? Boolean ?: false,
+                            isFailure = setItem["isFailure"] as? Boolean ?: false,
+                            rpe = (setItem["rpe"] as? Number)?.toInt(),
+                            tempo = setItem["tempo"] as? String,
+                            restTime = (setItem["restTime"] as? Number)?.toInt() ?: 60
+                        )
+                    } ?: emptyList()
+
+                    repository.saveWorkoutSession(sessionObj, matchingSets)
+                }
+            }
+
+            "Backup imported successfully! Loaded ${sessionsList?.size ?: 0} sessions and ${bmList?.size ?: 0} metrics."
+        } catch (e: Exception) {
+            "Failed to import backup: ${e.localizedMessage}"
+        }
     }
 
     // --- Food Logs ---
     val foodLogs = repository.allFoodLogs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    var targetCalories by mutableStateOf(2000)
-    var targetProtein by mutableStateOf(150)
-    var targetCarbs by mutableStateOf(220)
-    var targetFat by mutableStateOf(65)
+    private val prefs = application.getSharedPreferences("user_profile_prefs", android.content.Context.MODE_PRIVATE)
+
+    var targetCalories by mutableStateOf(prefs.getInt("target_calories", 2000))
+    var targetProtein by mutableStateOf(prefs.getInt("target_protein", 150))
+    var targetCarbs by mutableStateOf(prefs.getInt("target_carbs", 220))
+    var targetFat by mutableStateOf(prefs.getInt("target_fat", 65))
+
+    fun updateTargetCalories(value: Int) {
+        targetCalories = value
+        prefs.edit().putInt("target_calories", value).apply()
+    }
+    fun updateTargetProtein(value: Int) {
+        targetProtein = value
+        prefs.edit().putInt("target_protein", value).apply()
+    }
+    fun updateTargetCarbs(value: Int) {
+        targetCarbs = value
+        prefs.edit().putInt("target_carbs", value).apply()
+    }
+    fun updateTargetFat(value: Int) {
+        targetFat = value
+        prefs.edit().putInt("target_fat", value).apply()
+    }
+
+    var userName by mutableStateOf(prefs.getString("user_name", "") ?: "")
+    var userAge by mutableStateOf(prefs.getString("user_age", "") ?: "")
+    var userGender by mutableStateOf(prefs.getString("user_gender", "") ?: "")
+    var userWeight by mutableStateOf(prefs.getString("user_weight", "") ?: "")
+    var userHeight by mutableStateOf(prefs.getString("user_height", "") ?: "")
+    var userGoal by mutableStateOf(prefs.getString("user_goal", "Lose weight") ?: "Lose weight")
+    var userActivityLevel by mutableStateOf(prefs.getString("user_activity_level", "Moderately Active") ?: "Moderately Active")
+    var userMealFrequency by mutableStateOf(prefs.getString("user_meal_frequency", "") ?: "")
+    var isOnboardingCompleted by mutableStateOf(prefs.getBoolean("is_onboarding_completed", false))
+
+    fun saveUserProfile(
+        name: String,
+        age: String,
+        gender: String,
+        weight: String,
+        height: String,
+        goal: String,
+        activityLevel: String,
+        mealFrequency: String
+    ) {
+        userName = name
+        userAge = age
+        userGender = gender
+        userWeight = weight
+        userHeight = height
+        userGoal = goal
+        userActivityLevel = activityLevel
+        userMealFrequency = mealFrequency
+        isOnboardingCompleted = true
+
+        prefs.edit()
+            .putString("user_name", name)
+            .putString("user_age", age)
+            .putString("user_gender", gender)
+            .putString("user_weight", weight)
+            .putString("user_height", height)
+            .putString("user_goal", goal)
+            .putString("user_activity_level", activityLevel)
+            .putString("user_meal_frequency", mealFrequency)
+            .putBoolean("is_onboarding_completed", true)
+            .apply()
+    }
+
+    var isBodyAnalysisLoading by mutableStateOf(false)
+    var bodyAnalysisResult by mutableStateOf<String?>(null)
+
+    fun getOfflineSuggestedTargets(): SuggestedTargets {
+        val w = userWeight.toDoubleOrNull() ?: 70.0
+        val h = userHeight.toDoubleOrNull() ?: 170.0
+        val a = userAge.toIntOrNull() ?: 25
+        val g = userGender.trim().uppercase()
+
+        // BMR (Mifflin-St Jeor)
+        val bmr = if (g == "M" || g.startsWith("MALE")) {
+            10.0 * w + 6.25 * h - 5.0 * a + 5.0
+        } else if (g == "F" || g.startsWith("FEMALE")) {
+            10.0 * w + 6.25 * h - 5.0 * a - 161.0
+        } else {
+            10.0 * w + 6.25 * h - 5.0 * a - 78.0 // neutral
+        }
+
+        // TDEE multiplier
+        val multiplier = when {
+            userActivityLevel.contains("sedentary", ignoreCase = true) -> 1.2
+            userActivityLevel.contains("active", ignoreCase = true) -> 1.55
+            userActivityLevel.contains("athlete", ignoreCase = true) -> 1.8
+            else -> 1.4
+        }
+
+        val tdee = bmr * multiplier
+
+        // Goal modifier
+        val targetCals = when {
+            userGoal.contains("lose", ignoreCase = true) -> (tdee - 500.0).coerceAtLeast(1200.0)
+            userGoal.contains("gain", ignoreCase = true) -> tdee + 350.0
+            else -> tdee
+        }.toInt()
+
+        // Macros splits
+        val proteinPerKg = when {
+            userGoal.contains("gain", ignoreCase = true) -> 2.0
+            userGoal.contains("lose", ignoreCase = true) -> 2.2
+            else -> 1.8
+        }
+        val targetProt = (w * proteinPerKg).coerceIn(40.0, 300.0).toInt()
+
+        val fatPerKg = when {
+            userGoal.contains("gain", ignoreCase = true) -> 0.9
+            userGoal.contains("lose", ignoreCase = true) -> 0.7
+            else -> 0.8
+        }
+        val targetFatVal = (w * fatPerKg).coerceIn(30.0, 150.0).toInt()
+
+        // Remaining calories for carbs
+        val proteinKcal = targetProt * 4
+        val fatKcal = targetFatVal * 9
+        val remainingKcal = (targetCals - proteinKcal - fatKcal).coerceAtLeast(100)
+        val targetCarb = (remainingKcal / 4).toInt()
+
+        val activeHours = when {
+            userActivityLevel.contains("sedentary", ignoreCase = true) -> 0.5
+            userActivityLevel.contains("active", ignoreCase = true) -> 1.0
+            userActivityLevel.contains("athlete", ignoreCase = true) -> 1.5
+            else -> 1.0
+        }
+
+        val suggestedFreq = if (userMealFrequency.isNotEmpty()) userMealFrequency else {
+            if (userGoal.contains("gain", ignoreCase = true)) "4-5" else "3"
+        }
+
+        return SuggestedTargets(
+            calories = targetCals,
+            protein = targetProt,
+            carbs = targetCarb,
+            fat = targetFatVal,
+            activeHours = activeHours,
+            mealFrequency = suggestedFreq
+        )
+    }
+
+    fun analyzeUserBodyMetrics(onComplete: (String) -> Unit = {}) {
+        if (isBodyAnalysisLoading) return
+        isBodyAnalysisLoading = true
+        bodyAnalysisResult = null
+
+        // First, calculate offline suggested targets and update state automatically!
+        val suggested = getOfflineSuggestedTargets()
+        updateTargetCalories(suggested.calories)
+        updateTargetProtein(suggested.protein)
+        updateTargetCarbs(suggested.carbs)
+        updateTargetFat(suggested.fat)
+
+        viewModelScope.launch {
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+                bodyAnalysisResult = "We calculated a personalized offline metabolic profile for you based on your stats:\n\n• **Daily Calories**: ${suggested.calories} kcal\n• **Protein**: ${suggested.protein}g\n• **Carbohydrates**: ${suggested.carbs}g\n• **Fat**: ${suggested.fat}g\n• **Target Active Hours**: ${suggested.activeHours} hrs/day\n• **Meal Frequency**: ${suggested.mealFrequency} meals/day\n\n*Note: To get Gyani's detailed coaching strategy, add your Gemini API key in the Secrets panel of AI Studio.*"
+                isBodyAnalysisLoading = false
+                onComplete(bodyAnalysisResult ?: "")
+                return@launch
+            }
+
+            val prompt = """
+                Analyze the following user profile and body metrics to recommend a perfect fitness and nutrition strategy:
+                Name: $userName
+                Age: $userAge
+                Gender: $userGender
+                Weight: $userWeight kg
+                Height: $userHeight cm
+                Fitness Goal: $userGoal
+                Activity Level: $userActivityLevel
+                Meal Frequency: $userMealFrequency times per day
+
+                Calculate:
+                1. Target Daily Calories (kcal) appropriate for their goal (fat loss, muscle gain, or maintenance).
+                2. Optimal Protein (g), Carbohydrates (g), and Fat (g) splits.
+                3. A highly motivating fitness strategy, nutrition tips, and meal splitting ideas.
+
+                You MUST return ONLY a raw JSON object conforming exactly to this structure:
+                {
+                  "calories": Integer,
+                  "protein": Integer,
+                  "carbs": Integer,
+                  "fat": Integer,
+                  "analysis": "A detailed, encouraging analysis with bullet points and bold headers. Explain the math, the approach, and why these targets work. Under 250 words."
+                }
+            """.trimIndent()
+
+            val resultText = withContext(Dispatchers.IO) {
+                val request = GeminiRequest(
+                    contents = listOf(
+                        GeminiContent(parts = listOf(GeminiPart(text = prompt)))
+                    ),
+                    systemInstruction = GeminiContent(
+                        parts = listOf(
+                            GeminiPart(
+                                text = "You are Gyani, the elite personal trainer. You respond ONLY with raw, valid JSON conforming to the requested schema. No markdown wrapping unless inside the JSON fields."
+                            )
+                        )
+                    )
+                )
+
+                try {
+                    val response = GeminiServiceClient.api.generateWorkoutAdvice(apiKey, request)
+                    response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (resultText != null) {
+                try {
+                    val cleanedJson = resultText.trim()
+                        .removePrefix("```json")
+                        .removePrefix("```")
+                        .removeSuffix("```")
+                        .trim()
+
+                    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+                    val adapter = moshi.adapter(GeminiBodyAnalysisResponse::class.java)
+                    val parsed = adapter.fromJson(cleanedJson)
+
+                    if (parsed != null) {
+                        updateTargetCalories(parsed.calories)
+                        updateTargetProtein(parsed.protein)
+                        updateTargetCarbs(parsed.carbs)
+                        updateTargetFat(parsed.fat)
+                        bodyAnalysisResult = parsed.analysis
+                    } else {
+                        throw Exception("Failed to parse response")
+                    }
+                } catch (e: Exception) {
+                    bodyAnalysisResult = "We calculated a default profile for you: ${targetCalories} kcal (Protein: ${targetProtein}g, Carbs: ${targetCarbs}g, Fat: ${targetFat}g). Please edit them anytime in the nutrition log."
+                }
+            } else {
+                bodyAnalysisResult = "Unable to reach Gyani. Defaulting to 2000 kcal targets. Please try again or update manually."
+            }
+
+            isBodyAnalysisLoading = false
+            onComplete(bodyAnalysisResult ?: "")
+        }
+    }
+
+    var gyaniChatHistory by mutableStateOf(listOf(
+        ChatMessage(
+            text = "Namaste! I am Gyani, your AI coach and fitness assistant. I can recommend workouts, track your diet, change splits, or add specific exercises. What are we achieving today?",
+            isUser = false
+        )
+    ))
+    var isGyaniAiLoading by mutableStateOf(false)
+
+    fun sendGyaniChatMessage(userText: String) {
+        if (userText.trim().isEmpty() || isGyaniAiLoading) return
+
+        val userMessage = ChatMessage(text = userText, isUser = true)
+        gyaniChatHistory = gyaniChatHistory + userMessage
+        isGyaniAiLoading = true
+
+        viewModelScope.launch {
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+                val errorMsg = "Gemini API key is not configured. Please add your key in the Secrets panel in AI Studio to talk with Gyani."
+                gyaniChatHistory = gyaniChatHistory + ChatMessage(text = errorMsg, isUser = false)
+                isGyaniAiLoading = false
+                return@launch
+            }
+
+            val historyText = gyaniChatHistory.takeLast(10).joinToString("\n") { 
+                if (it.isUser) "User: ${it.text}" else "Gyani: ${it.text}"
+            }
+
+            val activeSplitName = activeSplit.value?.name ?: "None"
+            val activeSplitId = activeSplit.value?.id ?: 0
+
+            val prompt = """
+                The user has the following profile:
+                - Name: $userName
+                - Goal: $userGoal
+                - Daily Calories Target: $targetCalories kcal
+                - Active Workout Split: $activeSplitName (ID: $activeSplitId)
+
+                Here is the recent conversation history:
+                $historyText
+
+                User's latest message: "$userText"
+
+                You are Gyani, an intelligent, empathetic, and knowledgeable Indian fitness coach and AI workout assistant.
+                Formulate an encouraging and helpful text response to their query.
+                
+                ACTION EXECUTION:
+                If the user wants you to modify something in the app (like adding a specific exercise, updating nutrition targets, or changing active split), you can request an action execution by filling the "action" field in the JSON response.
+                
+                For adding an exercise:
+                - If they describe a movement but do not know its name (e.g. "pull rope with cable on face like this"), recognize it as "Cable Face Pull" or another suitable exercise name.
+                - Make sure to identify which day of the week (e.g. "Monday", "Tuesday", etc.) or workout day name (e.g. "Pull Day") they want to add it to.
+                - Populate the ADD_EXERCISE action:
+                  "action": {
+                    "type": "ADD_EXERCISE",
+                    "dayOfWeek": "Monday", 
+                    "dayName": "Pull Day",
+                    "exerciseName": "Cable Face Pulls",
+                    "muscleGroup": "Shoulders",
+                    "category": "Cable",
+                    "equipment": "Cable Machine",
+                    "difficulty": "Beginner",
+                    "description": "Cable face pull is an outstanding shoulder isolation exercise focusing on rear delts and rotator cuffs.",
+                    "executionSteps": "1. Set cable pulley to upper chest height with rope attachment.\n2. Hold rope ends, step back.\n3. Pull rope to face, flaring elbows out and squeezing upper back."
+                  }
+
+                For updating nutrition targets:
+                - If they ask you to adjust their calories or targets, populate the SET_NUTRITION_TARGETS action:
+                  "action": {
+                    "type": "SET_NUTRITION_TARGETS",
+                    "calories": 2100,
+                    "protein": 160,
+                    "carbs": 210,
+                    "fat": 60
+                  }
+
+                Always respond ONLY with a raw JSON object matching this structure:
+                {
+                  "message": "A friendly conversational response under 100 words summarizing what you've done or explaining the exercise.",
+                  "action": { ... } or null
+                }
+            """.trimIndent()
+
+            val result = withContext(Dispatchers.IO) {
+                val request = GeminiRequest(
+                    contents = listOf(
+                        GeminiContent(parts = listOf(GeminiPart(text = prompt)))
+                    ),
+                    systemInstruction = GeminiContent(
+                        parts = listOf(
+                            GeminiPart(
+                                text = "You are Gyani, the super-coach. You respond ONLY with raw JSON. No markdown, no enclosing tags."
+                            )
+                        )
+                    )
+                )
+
+                try {
+                    val response = GeminiServiceClient.api.generateWorkoutAdvice(apiKey, request)
+                    response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (result != null) {
+                try {
+                    val cleanedJson = result.trim()
+                        .removePrefix("```json")
+                        .removePrefix("```")
+                        .removeSuffix("```")
+                        .trim()
+
+                    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+                    val adapter = moshi.adapter(GyaniResponse::class.java)
+                    val parsedResponse = adapter.fromJson(cleanedJson)
+
+                    if (parsedResponse != null) {
+                        gyaniChatHistory = gyaniChatHistory + ChatMessage(text = parsedResponse.message, isUser = false)
+                        
+                        parsedResponse.action?.let { action ->
+                            executeGyaniAction(action)
+                        }
+                    } else {
+                        throw Exception("Failed to parse response")
+                    }
+                } catch (e: Exception) {
+                    gyaniChatHistory = gyaniChatHistory + ChatMessage(text = "I processed your request, but had trouble parsing the action. Please try again with simpler words!", isUser = false)
+                }
+            } else {
+                gyaniChatHistory = gyaniChatHistory + ChatMessage(text = "Unable to reach Gyani. Please check your internet connection.", isUser = false)
+            }
+
+            isGyaniAiLoading = false
+        }
+    }
+
+    private fun executeGyaniAction(action: GyaniAction) {
+        viewModelScope.launch {
+            when (action.type.uppercase()) {
+                "ADD_EXERCISE" -> {
+                    val split = activeSplit.value ?: return@launch
+                    val days = repository.getDaysForSplit(split.id).first()
+                    
+                    val targetDay = days.find { day ->
+                        val dayOfWeekMatch = action.dayOfWeek != null && day.dayOfWeek.equals(action.dayOfWeek, ignoreCase = true)
+                        val nameMatch = action.dayName != null && day.name.equals(action.dayName, ignoreCase = true)
+                        dayOfWeekMatch || nameMatch
+                    } ?: days.firstOrNull()
+
+                    if (targetDay != null) {
+                        val exerciseName = action.exerciseName ?: "Cable Face Pull"
+                        val masterExercises = exercises.value
+                        var matchingExercise = masterExercises.find { it.name.equals(exerciseName, ignoreCase = true) }
+                        
+                        if (matchingExercise == null) {
+                            val newId = repository.insertExercise(
+                                Exercise(
+                                    name = exerciseName,
+                                    category = action.category ?: "Cable",
+                                    muscleGroup = action.muscleGroup ?: "Shoulders",
+                                    equipment = action.equipment ?: "Cable Machine",
+                                    difficulty = action.difficulty ?: "Beginner",
+                                    description = action.description ?: "Added by Gyani AI",
+                                    executionSteps = action.executionSteps ?: "",
+                                    isCustom = true
+                                )
+                            )
+                            matchingExercise = Exercise(
+                                id = newId.toInt(),
+                                name = exerciseName,
+                                category = action.category ?: "Cable",
+                                muscleGroup = action.muscleGroup ?: "Shoulders",
+                                equipment = action.equipment ?: "Cable Machine"
+                            )
+                        }
+                        
+                        val dayExercises = repository.getExercisesForDay(targetDay.id).first()
+                        val alreadyLinked = dayExercises.any { it.id == matchingExercise.id }
+                        if (!alreadyLinked) {
+                            repository.addExerciseToDay(targetDay.id, matchingExercise.id, 99)
+                        }
+                    }
+                }
+                "SET_NUTRITION_TARGETS" -> {
+                    action.calories?.let { updateTargetCalories(it) }
+                    action.protein?.let { updateTargetProtein(it) }
+                    action.carbs?.let { updateTargetCarbs(it) }
+                    action.fat?.let { updateTargetFat(it) }
+                }
+                "ACTIVATE_SPLIT" -> {
+                    val splitList = splits.value
+                    val matchingSplit = splitList.find { it.name.equals(action.splitName, ignoreCase = true) }
+                    if (matchingSplit != null) {
+                        activateSplit(matchingSplit)
+                    }
+                }
+            }
+        }
+    }
 
     var nutritionChatHistory by mutableStateOf(listOf(
         ChatMessage(text = "Hello! I am AuraFit Nutrition AI. Tell me what you ate, e.g., 'I had 3 scrambled eggs and a banana for breakfast' or '100g of cooked chicken breast', and I'll estimate and log it for you!", isUser = false)
@@ -804,3 +1486,46 @@ class WorkoutViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+
+@JsonClass(generateAdapter = true)
+data class GeminiBodyAnalysisResponse(
+    val calories: Int,
+    val protein: Int,
+    val carbs: Int,
+    val fat: Int,
+    val analysis: String
+)
+
+@JsonClass(generateAdapter = true)
+data class GyaniResponse(
+    val message: String,
+    val action: GyaniAction? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class GyaniAction(
+    val type: String,
+    val dayOfWeek: String? = null,
+    val dayName: String? = null,
+    val exerciseName: String? = null,
+    val muscleGroup: String? = null,
+    val category: String? = null,
+    val equipment: String? = null,
+    val difficulty: String? = null,
+    val description: String? = null,
+    val executionSteps: String? = null,
+    val calories: Int? = null,
+    val protein: Int? = null,
+    val carbs: Int? = null,
+    val fat: Int? = null,
+    val splitName: String? = null
+)
+
+data class SuggestedTargets(
+    val calories: Int,
+    val protein: Int,
+    val carbs: Int,
+    val fat: Int,
+    val activeHours: Double,
+    val mealFrequency: String
+)
